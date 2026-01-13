@@ -10,8 +10,8 @@
 
 script_name('SupportsPlus')
 script_author("Serhiy_Rubin")
-script_version("2.1.5")
-script_version_number(2015)
+script_version("2.1.6")
+script_version_number(2016)
 
 -- GitHub конфигурация
 local GITHUB_REPO = "abutsik4/SampRpSupports"
@@ -125,17 +125,26 @@ end
 function utils.compare_versions(v1, v2)
     -- Возвращает 1 если v1 > v2, -1 если v1 < v2, 0 если равны
     
+    -- Безопасный лог (может не работать в некоторых потоках)
+    local function safe_log(level, msg)
+        pcall(function()
+            if log and log.write then
+                log.write(level, msg)
+            end
+        end)
+    end
+    
     -- Проверка на nil или пустые строки
     if not v1 or v1 == '' then
-        log.warning('compare_versions: v1 is nil or empty, treating as 0.0.0')
+        safe_log(log and log.LEVEL and log.LEVEL.WARNING or 3, 'compare_versions: v1 is nil or empty, treating as 0.0.0')
         v1 = '0.0.0'
     end
     if not v2 or v2 == '' then
-        log.warning('compare_versions: v2 is nil or empty, treating as 0.0.0')
+        safe_log(log and log.LEVEL and log.LEVEL.WARNING or 3, 'compare_versions: v2 is nil or empty, treating as 0.0.0')
         v2 = '0.0.0'
     end
     
-    log.debug(string.format('compare_versions: comparing "%s" vs "%s"', tostring(v1), tostring(v2)))
+    safe_log(log and log.LEVEL and log.LEVEL.DEBUG or 1, string.format('compare_versions: comparing "%s" vs "%s"', tostring(v1), tostring(v2)))
     
     local function split(v)
         local parts = {}
@@ -151,15 +160,15 @@ function utils.compare_versions(v1, v2)
     for i = 1, math.max(#p1, #p2) do
         local n1, n2 = p1[i] or 0, p2[i] or 0
         if n1 > n2 then 
-            log.debug(string.format('compare_versions: %s > %s (result: 1)', v1, v2))
+            safe_log(log and log.LEVEL and log.LEVEL.DEBUG or 1, string.format('compare_versions: %s > %s (result: 1)', v1, v2))
             return 1 
         end
         if n1 < n2 then 
-            log.debug(string.format('compare_versions: %s < %s (result: -1)', v1, v2))
+            safe_log(log and log.LEVEL and log.LEVEL.DEBUG or 1, string.format('compare_versions: %s < %s (result: -1)', v1, v2))
             return -1 
         end
     end
-    log.debug(string.format('compare_versions: %s == %s (result: 0)', v1, v2))
+    safe_log(log and log.LEVEL and log.LEVEL.DEBUG or 1, string.format('compare_versions: %s == %s (result: 0)', v1, v2))
     return 0
 end
 
@@ -889,46 +898,55 @@ end
 -- ГЛАВНАЯ ФУНКЦИЯ
 -- ============================================================================
 function main()
-    if not isSampLoaded() or not isSampfuncsLoaded() then return end
-    while not isSampAvailable() do wait(100) end
-    repeat wait(0) until sampGetCurrentServerName() ~= 'SA-MP'
+    -- НЕ проверяем SAMP здесь - это делается в script_main!
+    -- Эта функция вызывается только после подключения к серверу
     
     log.info('=== SupportsPlus Main Initialization ===')
-    print('[SupportsPlus] SupportsPlus v2.1.1 загрузка...')
+    print('[SupportsPlus] SupportsPlus v2.1.5 загрузка...')
     
+    log.info('Step 1/3: Parsing car database...')
     log.measure('parse_cars', parse_cars)
-    log.measure('filter_cars', filter_cars)
-    log.measure('apply_theme', apply_theme)
+    log.with_context(log.LEVEL.INFO, 'Car database loaded', {count = #cars})
     
-    sampAddChatMessage('{00FF00}[SupportsPlus] v2.1.1 загружен! F8 Меню | F9 Авто | F10 GPS | F11 Обновления', -1)
-    log.info('Script fully loaded and ready')
+    log.info('Step 2/3: Filtering cars with default settings...')
+    log.measure('filter_cars', filter_cars)
+    log.with_context(log.LEVEL.INFO, 'Car filter applied', {filtered = #cars_filtered})
+    
+    log.info('Step 3/3: Applying ImGui theme...')
+    log.measure('apply_theme', apply_theme)
+    log.info('Theme applied successfully')
+    
+    sampAddChatMessage('{00FF00}[SupportsPlus] v2.1.5 загружен! F8 Меню | F9 Авто | F10 GPS | F11 Обновления', -1)
+    log.info('=== SupportsPlus Fully Initialized and Ready ===')
     
     -- Проверка обновлений при старте
     if config.settings.check_updates_on_start and has_http then
+        log.debug('Scheduling update check in 3 seconds')
         lua_thread.create(function()
-            wait(3000) -- Ждём 3 сек после загрузки
+            wait(3000)
             check_for_updates(true)
         end)
     end
     
+    log.info('Entering main event loop')
     while true do
         wait(0)
         if wasKeyPressed(vkeys.VK_F8) then 
             main_win.v = not main_win.v
-            log.debug('Main window toggled: ' .. tostring(main_win.v))
+            log.debug('Hotkey F8: Main window toggled to ' .. tostring(main_win.v))
         end
         if wasKeyPressed(vkeys.VK_F9) then 
             car_win.v = not car_win.v
             filter_cars()
-            log.debug('Car window toggled: ' .. tostring(car_win.v))
+            log.debug('Hotkey F9: Car window toggled to ' .. tostring(car_win.v))
         end
         if wasKeyPressed(vkeys.VK_F10) then 
             gps_win.v = not gps_win.v
-            log.debug('GPS window toggled: ' .. tostring(gps_win.v))
+            log.debug('Hotkey F10: GPS window toggled to ' .. tostring(gps_win.v))
         end
         if wasKeyPressed(vkeys.VK_F11) then 
             update_win.v = not update_win.v
-            log.debug('Update window toggled: ' .. tostring(update_win.v))
+            log.debug('Hotkey F11: Update window toggled to ' .. tostring(update_win.v))
         end
     end
 end
@@ -952,7 +970,7 @@ end
 log.info('Creating main thread')
 
 -- Hardcoded версия на случай если script_version() возвращает nil
-local SCRIPT_VERSION = "2.1.4"
+local SCRIPT_VERSION = "2.1.6"
 
 function script_main()
     if not isSampLoaded() or not isSampfuncsLoaded() then 
