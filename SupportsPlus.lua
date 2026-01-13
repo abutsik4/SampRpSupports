@@ -10,8 +10,8 @@
 
 script_name('SupportsPlus')
 script_author("Serhiy_Rubin")
-script_version("2.1.2")
-script_version_number(2012)
+script_version("2.1.3")
+script_version_number(2013)
 
 -- GitHub конфигурация
 local GITHUB_REPO = "abutsik4/SampRpSupports"
@@ -897,6 +897,19 @@ function onScriptTerminate(s, q)
     end
 end
 
--- Запуск без pcall (coroutines требуют прямого вызова)
-log.info('Starting main function')
-main()
+-- Запуск в отдельном потоке (корутины требуют lua_thread)
+log.info('Creating main thread')
+function script_main()
+    if not isSampLoaded() or not isSampfuncsLoaded() then 
+        log.error('SAMP/Sampfuncs not loaded, aborting')
+        return 
+    end
+    
+    while not isSampAvailable() do wait(100) end
+    repeat wait(0) until sampGetCurrentServerName() ~= 'SA-MP'
+    
+    -- Теперь вызываем main
+    main()
+end
+
+lua_thread.create(script_main)
