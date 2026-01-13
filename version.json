@@ -1,11 +1,11 @@
 {
-  "version": "2.1.4",
-  "version_number": 2014,
-  "changelog": "Исправлена критическая ошибка в сравнении версий + полная валидация",
-  "bugfixes_214": [
-    "Добавлена проверка на nil в compare_versions",
-    "Добавлена валидация script_version() перед сравнением",
-    "Подробное логирование каждого шага сравнения версий",
-    "Fallback на '0.0.0' если версия nil"
+  "version": "2.1.5",
+  "version_number": 2015,
+  "changelog": "Исправлена двойная инициализация + hardcoded версия для обхода script_version nil",
+  "bugfixes_215": [
+    "Исправлена двойная инициализация main()",
+    "Добавлена hardcoded константа SCRIPT_VERSION = 2.1.5",
+    "script_version() nil больше не проблема - используется fallback",
+    "Детальное логирование в script_main"
   ]
 }
