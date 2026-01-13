@@ -1,11 +1,11 @@
 {
-  "version": "2.1.5",
-  "version_number": 2015,
-  "changelog": "Исправлена двойная инициализация + hardcoded версия для обхода script_version nil",
-  "bugfixes_215": [
-    "Исправлена двойная инициализация main()",
-    "Добавлена hardcoded константа SCRIPT_VERSION = 2.1.5",
-    "script_version() nil больше не проблема - используется fallback",
-    "Детальное логирование в script_main"
+  "version": "2.1.6",
+  "version_number": 2016,
+  "changelog": "ФИНАЛЬНОЕ исправление: двойная инициализация, безопасный лог, правильная версия",
+  "bugfixes_216": [
+    "Полностью переписан main() - убраны SAMP проверки (они в script_main)",
+    "compare_versions использует safe_log с pcall для работы в потоках",
+    "SCRIPT_VERSION = 2.1.6 (синхронизировано)",
+    "Одна инициализация - main() вызывается один раз"
   ]
 }
