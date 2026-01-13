@@ -10,8 +10,8 @@
 
 script_name('SupportsPlus')
 script_author("Serhiy_Rubin")
-script_version("2.1.4")
-script_version_number(2014)
+script_version("2.1.5")
+script_version_number(2015)
 
 -- GitHub конфигурация
 local GITHUB_REPO = "abutsik4/SampRpSupports"
@@ -416,10 +416,10 @@ local function check_for_updates(silent)
             if version_match then
                 local current_version = script_version()
                 
-                -- Проверяем что версия определена
+                -- Проверяем что версия определена, иначе используем hardcoded
                 if not current_version or current_version == '' then
-                    log.error('script_version() returned nil or empty!')
-                    current_version = '0.0.0'
+                    log.warning('script_version() returned nil, using hardcoded SCRIPT_VERSION')
+                    current_version = SCRIPT_VERSION
                 end
                 
                 config.update.last_check = os.time()
@@ -950,16 +950,23 @@ end
 
 -- Запуск в отдельном потоке (корутины требуют lua_thread)
 log.info('Creating main thread')
+
+-- Hardcoded версия на случай если script_version() возвращает nil
+local SCRIPT_VERSION = "2.1.4"
+
 function script_main()
     if not isSampLoaded() or not isSampfuncsLoaded() then 
         log.error('SAMP/Sampfuncs not loaded, aborting')
         return 
     end
     
+    log.debug('Waiting for SAMP availability...')
     while not isSampAvailable() do wait(100) end
+    log.debug('Waiting for server connection...')
     repeat wait(0) until sampGetCurrentServerName() ~= 'SA-MP'
     
-    -- Теперь вызываем main
+    log.info('Server connected, calling main()')
+    -- Теперь вызываем main один раз
     main()
 end
 
