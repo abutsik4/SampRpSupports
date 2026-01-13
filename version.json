@@ -1,12 +1,11 @@
 {
-  "version": "2.1.2",
-  "version_number": 2012,
-  "changelog": "Критические исправления: API вызовы, корутины, тема ImGui",
-  "release_date": "2026-01-13",
-  "download_url": "https://raw.githubusercontent.com/abutsik4/SampRpSupports/main/SupportsPlus.lua",
-  "bugfixes_212": [
-    "Исправлена ошибка с несуществующим sampGetGameVersion()",
-    "Убран pcall из main() для поддержки корутин",
-    "Удалён неподдерживаемый TabRounding из темы"
+  "version": "2.1.3",
+  "version_number": 2013,
+  "changelog": "Исправлена проблема с корутинами + подробное логирование каждого шага",
+  "bugfixes_213": [
+    "main() теперь запускается через lua_thread.create()",
+    "Добавлено подробное логирование каждого шага инициализации",
+    "Логи показывают: проверку SAMP, подключение к серверу, парсинг авто, применение темы",
+    "Теперь видно точно где происходит ошибка"
   ]
 }
