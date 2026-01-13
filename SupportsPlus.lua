@@ -10,8 +10,8 @@
 
 script_name('SupportsPlus')
 script_author("Serhiy_Rubin")
-script_version("2.1.0")
-script_version_number(2010)
+script_version("2.1.1")
+script_version_number(2011)
 
 -- GitHub конфигурация
 local GITHUB_REPO = "abutsik4/SampRpSupports"
@@ -142,6 +142,219 @@ function utils.compare_versions(v1, v2)
 end
 
 -- ============================================================================
+-- СИСТЕМА ЛОГИРОВАНИЯ
+-- ============================================================================
+local log = {}
+local log_dir = getGameDirectory() .. '\\moonloader\\SupportsPlus\\logs\\'
+local log_file = log_dir .. 'support.log'
+local max_log_size = 512 * 1024  -- 512 KB
+local max_log_files = 5
+local log_buffer = {}
+local log_enabled = true
+
+-- Уровни логирования
+log.LEVEL = {
+    DEBUG = 1,
+    INFO = 2,
+    WARNING = 3,
+    ERROR = 4
+}
+
+log.current_level = log.LEVEL.INFO  -- По умолчанию INFO и выше
+
+local level_names = {
+    [log.LEVEL.DEBUG] = 'DEBUG',
+    [log.LEVEL.INFO] = 'INFO',
+    [log.LEVEL.WARNING] = 'WARN',
+    [log.LEVEL.ERROR] = 'ERROR'
+}
+
+local level_colors = {
+    [log.LEVEL.DEBUG] = 0x888888,
+    [log.LEVEL.INFO] = 0x00FF00,
+    [log.LEVEL.WARNING] = 0xFFAA00,
+    [log.LEVEL.ERROR] = 0xFF3333
+}
+
+-- Создание директории логов
+local function ensure_log_dir()
+    if not doesDirectoryExist(log_dir) then
+        createDirectory(log_dir)
+    end
+end
+
+-- Ротация логов
+local function rotate_logs()
+    if not doesFileExist(log_file) then return end
+    
+    local size = 0
+    local f = io.open(log_file, 'r')
+    if f then
+        size = f:seek('end')
+        f:close()
+    end
+    
+    if size > max_log_size then
+        -- Удаляем самый старый лог
+        local oldest = log_dir .. 'support.' .. max_log_files .. '.log'
+        if doesFileExist(oldest) then os.remove(oldest) end
+        
+        -- Сдвигаем все логи
+        for i = max_log_files - 1, 1, -1 do
+            local old_name = log_dir .. 'support.' .. i .. '.log'
+            local new_name = log_dir .. 'support.' .. (i + 1) .. '.log'
+            if doesFileExist(old_name) then
+                os.rename(old_name, new_name)
+            end
+        end
+        
+        -- Переименовываем текущий
+        os.rename(log_file, log_dir .. 'support.1.log')
+    end
+end
+
+-- Получение информации о системе
+local function get_system_info()
+    local info = {
+        script_version = script_version(),
+        samp_version = sampGetGameVersion() or 'unknown',
+        lua_version = _VERSION,
+        memory = string.format('%.2f MB', collectgarbage('count') / 1024),
+        time = os.date('%Y-%m-%d %H:%M:%S'),
+        server = sampGetCurrentServerName() or 'offline'
+    }
+    return info
+end
+
+-- Форматирование стека вызовов
+local function format_stack_trace()
+    local stack = {}
+    local level = 3  -- Пропускаем сам logger
+    
+    while true do
+        local info = debug.getinfo(level, 'Sln')
+        if not info then break end
+        
+        local func_name = info.name or 'anonymous'
+        local source = info.short_src or '?'
+        local line = info.currentline or 0
+        
+        table.insert(stack, string.format('  at %s (%s:%d)', func_name, source, line))
+        level = level + 1
+        
+        if level > 15 then break end  -- Ограничение глубины
+    end
+    
+    return table.concat(stack, '\n')
+end
+
+-- Основная функция логирования
+function log.write(level, message, include_stack)
+    if not log_enabled or level < log.current_level then return end
+    
+    ensure_log_dir()
+    rotate_logs()
+    
+    local timestamp = os.date('%Y-%m-%d %H:%M:%S')
+    local level_name = level_names[level] or 'UNKNOWN'
+    local formatted = string.format('[%s] [%s] %s', timestamp, level_name, message)
+    
+    -- Добавляем стек вызовов для ошибок
+    if include_stack or level >= log.LEVEL.ERROR then
+        formatted = formatted .. '\n' .. format_stack_trace()
+    end
+    
+    -- Запись в файл
+    local file = io.open(log_file, 'a')
+    if file then
+        file:write(formatted .. '\n')
+        file:close()
+    end
+    
+    -- Вывод в консоль MoonLoader
+    print('[SupportsPlus] ' .. formatted)
+    
+    -- Буферизация для UI
+    table.insert(log_buffer, {
+        time = timestamp,
+        level = level,
+        message = message
+    })
+    
+    if #log_buffer > 100 then table.remove(log_buffer, 1) end
+end
+
+-- Сокращённые функции
+function log.debug(msg, stack) log.write(log.LEVEL.DEBUG, msg, stack) end
+function log.info(msg, stack) log.write(log.LEVEL.INFO, msg, stack) end
+function log.warning(msg, stack) log.write(log.LEVEL.WARNING, msg, stack) end
+function log.error(msg, stack) log.write(log.LEVEL.ERROR, msg, stack or true) end
+
+-- Логирование с контекстом
+function log.with_context(level, message, context)
+    local ctx_str = ''
+    if context then
+        local parts = {}
+        for k, v in pairs(context) do
+            table.insert(parts, string.format('%s=%s', k, tostring(v)))
+        end
+        ctx_str = ' [' .. table.concat(parts, ', ') .. ']'
+    end
+    log.write(level, message .. ctx_str)
+end
+
+-- Замер производительности
+function log.measure(name, func)
+    local start = os.clock()
+    local ok, result = pcall(func)
+    local duration = (os.clock() - start) * 1000  -- ms
+    
+    if ok then
+        log.debug(string.format('Performance: %s completed in %.2f ms', name, duration))
+        return result
+    else
+        log.error(string.format('Performance: %s failed after %.2f ms: %s', name, duration, tostring(result)), true)
+        error(result)
+    end
+end
+
+-- Безопасный вызов с логированием
+function log.safe_call(func_name, func, ...)
+    local args = {...}
+    local ok, result = pcall(function() return func(unpack(args)) end)
+    
+    if ok then
+        log.debug(string.format('Call: %s() succeeded', func_name))
+        return true, result
+    else
+        log.error(string.format('Call: %s() failed: %s', func_name, tostring(result)), true)
+        return false, result
+    end
+end
+
+-- Получение буфера логов для UI
+function log.get_buffer()
+    return log_buffer
+end
+
+-- Очистка логов
+function log.clear()
+    log_buffer = {}
+    if doesFileExist(log_file) then
+        os.remove(log_file)
+    end
+    log.info('Logs cleared')
+end
+
+-- Инициализация логгера
+ensure_log_dir()
+log.info('=== SupportsPlus Logger Initialized ===')
+local sys_info = get_system_info()
+for k, v in pairs(sys_info) do
+    log.debug(string.format('System: %s = %s', k, v))
+end
+
+-- ============================================================================
 -- АВТООБНОВЛЕНИЕ
 -- ============================================================================
 local update_state = {
@@ -157,7 +370,10 @@ local update_state = {
 local function check_for_updates(silent)
     if update_state.checking then return end
     
+    log.info('Checking for updates (silent=' .. tostring(silent) .. ')')
+    
     if not has_http then
+        log.warning('HTTP unavailable, auto-update disabled')
         if not silent then
             sampAddChatMessage('[SupportsPlus] Автообновление недоступно (нет библиотеки requests)', 0xFFAA00)
         end
@@ -171,6 +387,7 @@ local function check_for_updates(silent)
         local ok, response = pcall(requests.get, VERSION_URL, {timeout = 5})
         
         if ok and response and response.status_code == 200 then
+            log.debug('Version check response: ' .. tostring(response.status_code))
             -- Парсинг JSON вручную (простой случай)
             local version_match = response.text:match('"version"%s*:%s*"([^"]+)"')
             local changelog_match = response.text:match('"changelog"%s*:%s*"([^"]+)"')
@@ -178,6 +395,11 @@ local function check_for_updates(silent)
             if version_match then
                 local current_version = script_version()
                 config.update.last_check = os.time()
+                
+                log.with_context(log.LEVEL.INFO, 'Version check', {
+                    current = current_version,
+                    available = version_match
+                })
                 
                 if utils.compare_versions(version_match, current_version) > 0 then
                     -- Новая версия доступна
@@ -188,11 +410,16 @@ local function check_for_updates(silent)
                         config.update.available_version = version_match
                         save_config()
                         
+                        log.info('New version available: ' .. version_match)
+                        
                         if not silent then
                             sampAddChatMessage(string.format('[SupportsPlus] Доступна новая версия %s! Нажмите F11', version_match), 0x00FF00)
                         end
+                    else
+                        log.debug('Update skipped by user: ' .. version_match)
                     end
                 else
+                    log.info('Already on latest version')
                     if not silent then
                         sampAddChatMessage('[SupportsPlus] У вас последняя версия!', 0x00FF00)
                     end
@@ -200,6 +427,7 @@ local function check_for_updates(silent)
             end
         else
             update_state.error = u8"Не удалось проверить обновления"
+            log.error('Update check failed: ' .. tostring(response and response.status_code or 'no response'))
             if not silent then
                 sampAddChatMessage('[SupportsPlus] ' .. update_state.error, 0xFF3333)
             end
@@ -295,6 +523,7 @@ local car_data_raw = {
 local cars, cars_filtered, cars_favorite = {}, {}, {}
 
 local function parse_cars()
+    log.info('Starting car data parsing')
     local count, failed = 0, 0
     for i, raw in ipairs(car_data_raw) do
         local ok, err = pcall(function()
@@ -319,8 +548,12 @@ local function parse_cars()
                 error('invalid data')
             end
         end)
-        if not ok then failed = failed + 1 end
+        if not ok then 
+            failed = failed + 1
+            log.warning(string.format('Car #%d parse failed: %s', i, tostring(err)))
+        end
     end
+    log.info(string.format('Cars parsed: %d успешно, %d ошибок', count, failed))
     print('[SupportsPlus] Авто: ' .. count .. ' (ошибок: ' .. failed .. ')')
 end
 
@@ -608,13 +841,15 @@ function main()
     while not isSampAvailable() do wait(100) end
     repeat wait(0) until sampGetCurrentServerName() ~= 'SA-MP'
     
-    print('[SupportsPlus] SupportsPlus v2.1 загрузка...')
+    log.info('=== SupportsPlus Main Initialization ===')
+    print('[SupportsPlus] SupportsPlus v2.1.1 загрузка...')
     
-    parse_cars()
-    filter_cars()
-    apply_theme()
+    log.measure('parse_cars', parse_cars)
+    log.measure('filter_cars', filter_cars)
+    log.measure('apply_theme', apply_theme)
     
-    sampAddChatMessage('{00FF00}[SupportsPlus] v2.1 загружен! F8 Меню | F9 Авто | F10 GPS | F11 Обновления', -1)
+    sampAddChatMessage('{00FF00}[SupportsPlus] v2.1.1 загружен! F8 Меню | F9 Авто | F10 GPS | F11 Обновления', -1)
+    log.info('Script fully loaded and ready')
     
     -- Проверка обновлений при старте
     if config.settings.check_updates_on_start and has_http then
@@ -626,10 +861,23 @@ function main()
     
     while true do
         wait(0)
-        if wasKeyPressed(vkeys.VK_F8) then main_win.v = not main_win.v end
-        if wasKeyPressed(vkeys.VK_F9) then car_win.v = not car_win.v; filter_cars() end
-        if wasKeyPressed(vkeys.VK_F10) then gps_win.v = not gps_win.v end
-        if wasKeyPressed(vkeys.VK_F11) then update_win.v = not update_win.v end
+        if wasKeyPressed(vkeys.VK_F8) then 
+            main_win.v = not main_win.v
+            log.debug('Main window toggled: ' .. tostring(main_win.v))
+        end
+        if wasKeyPressed(vkeys.VK_F9) then 
+            car_win.v = not car_win.v
+            filter_cars()
+            log.debug('Car window toggled: ' .. tostring(car_win.v))
+        end
+        if wasKeyPressed(vkeys.VK_F10) then 
+            gps_win.v = not gps_win.v
+            log.debug('GPS window toggled: ' .. tostring(gps_win.v))
+        end
+        if wasKeyPressed(vkeys.VK_F11) then 
+            update_win.v = not update_win.v
+            log.debug('Update window toggled: ' .. tostring(update_win.v))
+        end
     end
 end
 
@@ -643,10 +891,15 @@ end
 function onScriptTerminate(s, q)
     if s == thisScript() then
         save_config()
+        log.info('=== SupportsPlus Terminated ===')
         print('[SupportsPlus] Выгружен')
     end
 end
 
 -- Запуск
+log.info('Starting main function')
 local ok, err = pcall(main)
-if not ok then print('[SupportsPlus] ОШИБКА: '..tostring(err)) end
+if not ok then 
+    log.error('Main function crashed: ' .. tostring(err), true)
+    print('[SupportsPlus] ОШИБКА: '..tostring(err)) 
+end
