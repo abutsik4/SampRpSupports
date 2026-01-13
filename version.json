@@ -1,0 +1,25 @@
+{
+  "version": "2.1.0",
+  "version_number": 2010,
+  "changelog": "Полная модернизация: 90+ авто, 200+ GPS, автообновление, избранное",
+  "release_date": "2026-01-13",
+  "download_url": "https://raw.githubusercontent.com/abutsik4/SampRpSupports/main/SupportsPlus.lua",
+  "min_moonloader_version": "026.5",
+  "required_libs": [
+    "lib.samp.events",
+    "lib.vkeys",
+    "lib.inicfg",
+    "imgui"
+  ],
+  "optional_libs": [
+    "requests"
+  ],
+  "features": [
+    "90+ автомобилей с поиском и фильтрацией",
+    "200+ GPS локаций в 10 категориях",
+    "Система избранного",
+    "Автообновление",
+    "Сохранение настроек",
+    "Современный ImGui интерфейс"
+  ]
+}
