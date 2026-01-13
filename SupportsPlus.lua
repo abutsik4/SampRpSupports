@@ -647,17 +647,36 @@ local gps_category = imgui.ImInt(config.filters.gps_category)
 -- ТЕМА IMGUI
 -- ============================================================================
 local function apply_theme()
-    local colors, clr = imgui.GetStyle().Colors, imgui.Col
+    log.debug('apply_theme: Getting ImGui style and colors')
     local style = imgui.GetStyle()
-    colors[clr.WindowBg] = imgui.ImVec4(0.12, 0.12, 0.14, 1)
-    colors[clr.Button] = imgui.ImVec4(0.20, 0.50, 0.90, 1)
-    colors[clr.ButtonHovered] = imgui.ImVec4(0.25, 0.60, 1.00, 1)
-    colors[clr.ButtonActive] = imgui.ImVec4(0.15, 0.40, 0.80, 1)
+    local colors = style.Colors
+    local clr = imgui.Col
+    
+    log.debug('apply_theme: Setting WindowBg color')
+    colors[clr.WindowBg] = imgui.ImVec4(0.12, 0.12, 0.14, 1.00)
+    
+    log.debug('apply_theme: Setting Button colors')
+    colors[clr.Button] = imgui.ImVec4(0.20, 0.50, 0.90, 1.00)
+    colors[clr.ButtonHovered] = imgui.ImVec4(0.25, 0.60, 1.00, 1.00)
+    colors[clr.ButtonActive] = imgui.ImVec4(0.15, 0.40, 0.80, 1.00)
+    
+    log.debug('apply_theme: Setting Header color')
     colors[clr.Header] = imgui.ImVec4(0.20, 0.50, 0.90, 0.45)
-    colors[clr.Tab] = imgui.ImVec4(0.15, 0.15, 0.17, 1)
-    colors[clr.TabActive] = imgui.ImVec4(0.20, 0.50, 0.90, 1)
+    
+    -- Табы могут отсутствовать в старых версиях imgui
+    if clr.Tab and clr.TabActive then
+        log.debug('apply_theme: Setting Tab colors (supported)')
+        colors[clr.Tab] = imgui.ImVec4(0.15, 0.15, 0.17, 1.00)
+        colors[clr.TabActive] = imgui.ImVec4(0.20, 0.50, 0.90, 1.00)
+    else
+        log.debug('apply_theme: Tab colors not supported in this imgui version')
+    end
+    
+    log.debug('apply_theme: Setting style rounding')
     style.WindowRounding = 8.0
     style.FrameRounding = 4.0
+    
+    log.info('apply_theme: Theme applied successfully')
 end
 
 -- ============================================================================
