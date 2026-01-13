@@ -1,44 +1,104 @@
--- SupportsPlus v2.1 - РџРѕР»РЅР°СЏ РІРµСЂСЃРёСЏ РґР»СЏ Samp-Rp.Ru
+-- SupportsPlus v2.1 - Полная версия для Samp-Rp.Ru
 -- GitHub: github.com/abutsik4/SampRpSupports
--- РђРІС‚РѕСЂ: Serhiy_Rubin
+-- Автор: Serhiy_Rubin
 --
--- рџљЂ SupportsPlus - РњРѕРґРµСЂРЅРёР·РёСЂРѕРІР°РЅРЅС‹Р№ РїРѕРјРѕС‰РЅРёРє РґР»СЏ SA-MP
--- вњЁ 90+ Р°РІС‚РѕРјРѕР±РёР»РµР№ | 200+ GPS Р»РѕРєР°С†РёР№ | РђРІС‚РѕРѕР±РЅРѕРІР»РµРЅРёРµ | РР·Р±СЂР°РЅРЅРѕРµ
+-- ?? SupportsPlus - Модернизированный помощник для SA-MP
+-- ? 90+ автомобилей | 200+ GPS локаций | Автообновление | Избранное
 --
--- РЈРЎРўРђРќРћР’РљРђ: РћРґРёРЅ С„Р°Р№Р» РІ GTA San Andreas/moonloader/
--- Р“РћР РЇР§РР• РљР›РђР’РРЁР: F8 РњРµРЅСЋ | F9 РђРІС‚Рѕ | F10 GPS | F11 РћР±РЅРѕРІР»РµРЅРёСЏ
+-- УСТАНОВКА: Один файл в GTA San Andreas/moonloader/
+-- ГОРЯЧИЕ КЛАВИШИ: F8 Меню | F9 Авто | F10 GPS | F11 Обновления
 
 script_name('SupportsPlus')
 script_author("Serhiy_Rubin")
 script_version("2.1.6")
 script_version_number(2016)
 
--- GitHub РєРѕРЅС„РёРіСѓСЂР°С†РёСЏ
+-- GitHub конфигурация
 local GITHUB_REPO = "abutsik4/SampRpSupports"
 local GITHUB_RAW = "https://raw.githubusercontent.com/" .. GITHUB_REPO .. "/main/"
 local VERSION_URL = GITHUB_RAW .. "version.json"
 local SCRIPT_URL = GITHUB_RAW .. "SupportsPlus.lua"
 
 -- ============================================================================
--- Р—РђР’РРЎРРњРћРЎРўР
+-- АВТОУСТАНОВКА БИБЛИОТЕК
 -- ============================================================================
+local function try_download_lib(name, url, filepath)
+    if not downloadUrlToFile then return false end
+    
+    print('[SupportsPlus] Скачивание ' .. name .. '...')
+    local done, success = false, false
+    
+    downloadUrlToFile(url, filepath, function(id, status)
+        if status == 6 then -- DOWNLOAD_STATUS_ENDDOWNLOADDATA
+            success = true
+            done = true
+        elseif status == 7 then -- DOWNLOAD_STATUS_ERROR
+            done = true
+        end
+    end)
+    
+    -- Wait for download
+    local t = os.clock()
+    while not done and os.clock() - t < 10 do wait(100) end
+    
+    if success then
+        print('[SupportsPlus] ' .. name .. ' установлен!')
+    else
+        print('[SupportsPlus] Не удалось скачать ' .. name)
+    end
+    return success
+end
+
 local function check_deps()
+    local lib_dir = getGameDirectory() .. '\\moonloader\\lib\\'
+    
+    -- Define libraries with download URLs where available
     local deps = {
-        {lib = 'lib.samp.events', name = 'SAMP Events'},
-        {lib = 'lib.vkeys', name = 'Virtual Keys'},
-        {lib = 'lib.inicfg', name = 'INI Config'}
+        {lib = 'lib.samp.events', name = 'SAMP Events', url = nil},
+        {lib = 'lib.vkeys', name = 'Virtual Keys', 
+         url = 'https://raw.githubusercontent.com/THE-FYP/SAMP-API/master/samp-lua/vkeys.lua',
+         file = lib_dir .. 'vkeys.lua'},
+        {lib = 'lib.inicfg', name = 'INI Config',
+         url = 'https://raw.githubusercontent.com/THE-FYP/SAMP-API/master/samp-lua/inicfg.lua',
+         file = lib_dir .. 'inicfg.lua'}
     }
     
     local missing = {}
     for _, dep in ipairs(deps) do
         if not pcall(require, dep.lib) then
-            table.insert(missing, dep.name)
+            table.insert(missing, dep)
+        end
+    end
+    
+    if #missing == 0 then return true end
+    
+    -- Try auto-download for libraries with URLs
+    local downloaded = false
+    for _, dep in ipairs(missing) do
+        if dep.url and dep.file then
+            if try_download_lib(dep.name, dep.url, dep.file) then
+                downloaded = true
+            end
+        end
+    end
+    
+    -- Re-check after downloads
+    if downloaded then
+        missing = {}
+        for _, dep in ipairs(deps) do
+            if not pcall(require, dep.lib) then
+                table.insert(missing, dep)
+            end
         end
     end
     
     if #missing > 0 then
-        print('[SupportsPlus] РћРЁРР‘РљРђ! РћС‚СЃСѓС‚СЃС‚РІСѓСЋС‚ Р±РёР±Р»РёРѕС‚РµРєРё:')
-        for _, name in ipairs(missing) do print('  - ' .. name) end
+        print('[SupportsPlus] ОШИБКА! Отсутствуют библиотеки:')
+        for _, dep in ipairs(missing) do
+            local hint = dep.url and ' (ошибка загрузки)' or ' (нужен SAMPFUNCS)'
+            print('  - ' .. dep.name .. hint)
+        end
+        print('[SupportsPlus] SAMPFUNCS: https://www.blast.hk/threads/17/')
         return false
     end
     return true
@@ -53,18 +113,18 @@ u8 = encoding.UTF8
 
 local imgui_ok, imgui = pcall(require, 'imgui')
 if not imgui_ok or not imgui then
-    print('[SupportsPlus] РћРЁРР‘РљРђ: ImGui РЅРµ РЅР°Р№РґРµРЅ!')
-    print('[SupportsPlus] РЈСЃС‚Р°РЅРѕРІРёС‚Рµ imgui.lua РІ moonloader/lib/')
+    print('[SupportsPlus] ОШИБКА: ImGui не найден!')
+    print('[SupportsPlus] Установите imgui.lua в moonloader/lib/')
     thisScript():unload()
     return
 end
 
--- РћРїС†РёРѕРЅР°Р»СЊРЅР°СЏ Р±РёР±Р»РёРѕС‚РµРєР° РґР»СЏ HTTP
+-- Опциональная библиотека для HTTP
 local requests_ok, requests = pcall(require, 'requests')
 local has_http = requests_ok and requests ~= nil
 
 -- ============================================================================
--- РљРћРќР¤РР“РЈР РђР¦РРЇ
+-- КОНФИГУРАЦИЯ
 -- ============================================================================
 local config_path = getGameDirectory() .. '\\moonloader\\config\\SupportsPlus.ini'
 local default_config = {
@@ -97,7 +157,7 @@ local function save_config()
 end
 
 -- ============================================================================
--- РЈРўРР›РРўР«
+-- УТИЛИТЫ
 -- ============================================================================
 local utils = {}
 
@@ -115,7 +175,7 @@ function utils.distance_2d(x1, y1, x2, y2)
 end
 
 function utils.format_distance(dist)
-    return dist < 1000 and string.format('%.0f Рј', dist) or string.format('%.2f РєРј', dist/1000)
+    return dist < 1000 and string.format('%.0f м', dist) or string.format('%.2f км', dist/1000)
 end
 
 function utils.safe_number(str, def)
@@ -123,9 +183,9 @@ function utils.safe_number(str, def)
 end
 
 function utils.compare_versions(v1, v2)
-    -- Р’РѕР·РІСЂР°С‰Р°РµС‚ 1 РµСЃР»Рё v1 > v2, -1 РµСЃР»Рё v1 < v2, 0 РµСЃР»Рё СЂР°РІРЅС‹
+    -- Возвращает 1 если v1 > v2, -1 если v1 < v2, 0 если равны
     
-    -- Р‘РµР·РѕРїР°СЃРЅС‹Р№ Р»РѕРі (РјРѕР¶РµС‚ РЅРµ СЂР°Р±РѕС‚Р°С‚СЊ РІ РЅРµРєРѕС‚РѕСЂС‹С… РїРѕС‚РѕРєР°С…)
+    -- Безопасный лог (может не работать в некоторых потоках)
     local function safe_log(level, msg)
         pcall(function()
             if log and log.write then
@@ -134,7 +194,7 @@ function utils.compare_versions(v1, v2)
         end)
     end
     
-    -- РџСЂРѕРІРµСЂРєР° РЅР° nil РёР»Рё РїСѓСЃС‚С‹Рµ СЃС‚СЂРѕРєРё
+    -- Проверка на nil или пустые строки
     if not v1 or v1 == '' then
         safe_log(log and log.LEVEL and log.LEVEL.WARNING or 3, 'compare_versions: v1 is nil or empty, treating as 0.0.0')
         v1 = '0.0.0'
@@ -148,7 +208,7 @@ function utils.compare_versions(v1, v2)
     
     local function split(v)
         local parts = {}
-        -- РџСЂРµРѕР±СЂР°Р·СѓРµРј РІ СЃС‚СЂРѕРєСѓ РЅР° РІСЃСЏРєРёР№ СЃР»СѓС‡Р°Р№
+        -- Преобразуем в строку на всякий случай
         local str = tostring(v)
         for part in str:gmatch('[^.]+') do
             table.insert(parts, tonumber(part) or 0)
@@ -173,7 +233,7 @@ function utils.compare_versions(v1, v2)
 end
 
 -- ============================================================================
--- РЎРРЎРўР•РњРђ Р›РћР“РР РћР’РђРќРРЇ
+-- СИСТЕМА ЛОГИРОВАНИЯ
 -- ============================================================================
 local log = {}
 local log_dir = getGameDirectory() .. '\\moonloader\\SupportsPlus\\logs\\'
@@ -183,7 +243,7 @@ local max_log_files = 5
 local log_buffer = {}
 local log_enabled = true
 
--- РЈСЂРѕРІРЅРё Р»РѕРіРёСЂРѕРІР°РЅРёСЏ
+-- Уровни логирования
 log.LEVEL = {
     DEBUG = 1,
     INFO = 2,
@@ -191,7 +251,7 @@ log.LEVEL = {
     ERROR = 4
 }
 
-log.current_level = log.LEVEL.INFO  -- РџРѕ СѓРјРѕР»С‡Р°РЅРёСЋ INFO Рё РІС‹С€Рµ
+log.current_level = log.LEVEL.INFO  -- По умолчанию INFO и выше
 
 local level_names = {
     [log.LEVEL.DEBUG] = 'DEBUG',
@@ -207,14 +267,14 @@ local level_colors = {
     [log.LEVEL.ERROR] = 0xFF3333
 }
 
--- РЎРѕР·РґР°РЅРёРµ РґРёСЂРµРєС‚РѕСЂРёРё Р»РѕРіРѕРІ
+-- Создание директории логов
 local function ensure_log_dir()
     if not doesDirectoryExist(log_dir) then
         createDirectory(log_dir)
     end
 end
 
--- Р РѕС‚Р°С†РёСЏ Р»РѕРіРѕРІ
+-- Ротация логов
 local function rotate_logs()
     if not doesFileExist(log_file) then return end
     
@@ -226,11 +286,11 @@ local function rotate_logs()
     end
     
     if size > max_log_size then
-        -- РЈРґР°Р»СЏРµРј СЃР°РјС‹Р№ СЃС‚Р°СЂС‹Р№ Р»РѕРі
+        -- Удаляем самый старый лог
         local oldest = log_dir .. 'support.' .. max_log_files .. '.log'
         if doesFileExist(oldest) then os.remove(oldest) end
         
-        -- РЎРґРІРёРіР°РµРј РІСЃРµ Р»РѕРіРё
+        -- Сдвигаем все логи
         for i = max_log_files - 1, 1, -1 do
             local old_name = log_dir .. 'support.' .. i .. '.log'
             local new_name = log_dir .. 'support.' .. (i + 1) .. '.log'
@@ -239,12 +299,12 @@ local function rotate_logs()
             end
         end
         
-        -- РџРµСЂРµРёРјРµРЅРѕРІС‹РІР°РµРј С‚РµРєСѓС‰РёР№
+        -- Переименовываем текущий
         os.rename(log_file, log_dir .. 'support.1.log')
     end
 end
 
--- РџРѕР»СѓС‡РµРЅРёРµ РёРЅС„РѕСЂРјР°С†РёРё Рѕ СЃРёСЃС‚РµРјРµ
+-- Получение информации о системе
 local function get_system_info()
     local info = {
         script_version = script_version(),
@@ -256,10 +316,10 @@ local function get_system_info()
     return info
 end
 
--- Р¤РѕСЂРјР°С‚РёСЂРѕРІР°РЅРёРµ СЃС‚РµРєР° РІС‹Р·РѕРІРѕРІ
+-- Форматирование стека вызовов
 local function format_stack_trace()
     local stack = {}
-    local level = 3  -- РџСЂРѕРїСѓСЃРєР°РµРј СЃР°Рј logger
+    local level = 3  -- Пропускаем сам logger
     
     while true do
         local info = debug.getinfo(level, 'Sln')
@@ -272,13 +332,13 @@ local function format_stack_trace()
         table.insert(stack, string.format('  at %s (%s:%d)', func_name, source, line))
         level = level + 1
         
-        if level > 15 then break end  -- РћРіСЂР°РЅРёС‡РµРЅРёРµ РіР»СѓР±РёРЅС‹
+        if level > 15 then break end  -- Ограничение глубины
     end
     
     return table.concat(stack, '\n')
 end
 
--- РћСЃРЅРѕРІРЅР°СЏ С„СѓРЅРєС†РёСЏ Р»РѕРіРёСЂРѕРІР°РЅРёСЏ
+-- Основная функция логирования
 function log.write(level, message, include_stack)
     if not log_enabled or level < log.current_level then return end
     
@@ -289,22 +349,22 @@ function log.write(level, message, include_stack)
     local level_name = level_names[level] or 'UNKNOWN'
     local formatted = string.format('[%s] [%s] %s', timestamp, level_name, message)
     
-    -- Р”РѕР±Р°РІР»СЏРµРј СЃС‚РµРє РІС‹Р·РѕРІРѕРІ РґР»СЏ РѕС€РёР±РѕРє
+    -- Добавляем стек вызовов для ошибок
     if include_stack or level >= log.LEVEL.ERROR then
         formatted = formatted .. '\n' .. format_stack_trace()
     end
     
-    -- Р—Р°РїРёСЃСЊ РІ С„Р°Р№Р»
+    -- Запись в файл
     local file = io.open(log_file, 'a')
     if file then
         file:write(formatted .. '\n')
         file:close()
     end
     
-    -- Р’С‹РІРѕРґ РІ РєРѕРЅСЃРѕР»СЊ MoonLoader
+    -- Вывод в консоль MoonLoader
     print('[SupportsPlus] ' .. formatted)
     
-    -- Р‘СѓС„РµСЂРёР·Р°С†РёСЏ РґР»СЏ UI
+    -- Буферизация для UI
     table.insert(log_buffer, {
         time = timestamp,
         level = level,
@@ -314,13 +374,13 @@ function log.write(level, message, include_stack)
     if #log_buffer > 100 then table.remove(log_buffer, 1) end
 end
 
--- РЎРѕРєСЂР°С‰С‘РЅРЅС‹Рµ С„СѓРЅРєС†РёРё
+-- Сокращённые функции
 function log.debug(msg, stack) log.write(log.LEVEL.DEBUG, msg, stack) end
 function log.info(msg, stack) log.write(log.LEVEL.INFO, msg, stack) end
 function log.warning(msg, stack) log.write(log.LEVEL.WARNING, msg, stack) end
 function log.error(msg, stack) log.write(log.LEVEL.ERROR, msg, stack or true) end
 
--- Р›РѕРіРёСЂРѕРІР°РЅРёРµ СЃ РєРѕРЅС‚РµРєСЃС‚РѕРј
+-- Логирование с контекстом
 function log.with_context(level, message, context)
     local ctx_str = ''
     if context then
@@ -333,7 +393,7 @@ function log.with_context(level, message, context)
     log.write(level, message .. ctx_str)
 end
 
--- Р—Р°РјРµСЂ РїСЂРѕРёР·РІРѕРґРёС‚РµР»СЊРЅРѕСЃС‚Рё
+-- Замер производительности
 function log.measure(name, func)
     local start = os.clock()
     local ok, result = pcall(func)
@@ -348,7 +408,7 @@ function log.measure(name, func)
     end
 end
 
--- Р‘РµР·РѕРїР°СЃРЅС‹Р№ РІС‹Р·РѕРІ СЃ Р»РѕРіРёСЂРѕРІР°РЅРёРµРј
+-- Безопасный вызов с логированием
 function log.safe_call(func_name, func, ...)
     local args = {...}
     local ok, result = pcall(function() return func(unpack(args)) end)
@@ -362,12 +422,12 @@ function log.safe_call(func_name, func, ...)
     end
 end
 
--- РџРѕР»СѓС‡РµРЅРёРµ Р±СѓС„РµСЂР° Р»РѕРіРѕРІ РґР»СЏ UI
+-- Получение буфера логов для UI
 function log.get_buffer()
     return log_buffer
 end
 
--- РћС‡РёСЃС‚РєР° Р»РѕРіРѕРІ
+-- Очистка логов
 function log.clear()
     log_buffer = {}
     if doesFileExist(log_file) then
@@ -376,7 +436,7 @@ function log.clear()
     log.info('Logs cleared')
 end
 
--- РРЅРёС†РёР°Р»РёР·Р°С†РёСЏ Р»РѕРіРіРµСЂР°
+-- Инициализация логгера
 ensure_log_dir()
 log.info('=== SupportsPlus Logger Initialized ===')
 local sys_info = get_system_info()
@@ -385,7 +445,7 @@ for k, v in pairs(sys_info) do
 end
 
 -- ============================================================================
--- РђР’РўРћРћР‘РќРћР’Р›Р•РќРР•
+-- АВТООБНОВЛЕНИЕ
 -- ============================================================================
 local update_state = {
     checking = false,
@@ -405,7 +465,7 @@ local function check_for_updates(silent)
     if not has_http then
         log.warning('HTTP unavailable, auto-update disabled')
         if not silent then
-            sampAddChatMessage('[SupportsPlus] РђРІС‚РѕРѕР±РЅРѕРІР»РµРЅРёРµ РЅРµРґРѕСЃС‚СѓРїРЅРѕ (РЅРµС‚ Р±РёР±Р»РёРѕС‚РµРєРё requests)', 0xFFAA00)
+            sampAddChatMessage('[SupportsPlus] Автообновление недоступно (нет библиотеки requests)', 0xFFAA00)
         end
         return
     end
@@ -418,14 +478,14 @@ local function check_for_updates(silent)
         
         if ok and response and response.status_code == 200 then
             log.debug('Version check response: ' .. tostring(response.status_code))
-            -- РџР°СЂСЃРёРЅРі JSON РІСЂСѓС‡РЅСѓСЋ (РїСЂРѕСЃС‚РѕР№ СЃР»СѓС‡Р°Р№)
+            -- Парсинг JSON вручную (простой случай)
             local version_match = response.text:match('"version"%s*:%s*"([^"]+)"')
             local changelog_match = response.text:match('"changelog"%s*:%s*"([^"]+)"')
             
             if version_match then
                 local current_version = script_version()
                 
-                -- РџСЂРѕРІРµСЂСЏРµРј С‡С‚Рѕ РІРµСЂСЃРёСЏ РѕРїСЂРµРґРµР»РµРЅР°, РёРЅР°С‡Рµ РёСЃРїРѕР»СЊР·СѓРµРј hardcoded
+                -- Проверяем что версия определена, иначе используем hardcoded
                 if not current_version or current_version == '' then
                     log.warning('script_version() returned nil, using hardcoded SCRIPT_VERSION')
                     current_version = SCRIPT_VERSION
@@ -442,18 +502,18 @@ local function check_for_updates(silent)
                 log.debug('Version comparison result: ' .. tostring(cmp_result))
                 
                 if cmp_result > 0 then
-                    -- РќРѕРІР°СЏ РІРµСЂСЃРёСЏ РґРѕСЃС‚СѓРїРЅР°
+                    -- Новая версия доступна
                     if config.update.skip_version ~= version_match then
                         update_state.available = true
                         update_state.new_version = version_match
-                        update_state.changelog = changelog_match or u8"РћР±РЅРѕРІР»РµРЅРёСЏ РґРѕСЃС‚СѓРїРЅС‹"
+                        update_state.changelog = changelog_match or u8"Обновления доступны"
                         config.update.available_version = version_match
                         save_config()
                         
                         log.info('New version available: ' .. version_match)
                         
                         if not silent then
-                            sampAddChatMessage(string.format('[SupportsPlus] Р”РѕСЃС‚СѓРїРЅР° РЅРѕРІР°СЏ РІРµСЂСЃРёСЏ %s! РќР°Р¶РјРёС‚Рµ F11', version_match), 0x00FF00)
+                            sampAddChatMessage(string.format('[SupportsPlus] Доступна новая версия %s! Нажмите F11', version_match), 0x00FF00)
                         end
                     else
                         log.debug('Update skipped by user: ' .. version_match)
@@ -461,12 +521,12 @@ local function check_for_updates(silent)
                 else
                     log.info('Already on latest version')
                     if not silent then
-                        sampAddChatMessage('[SupportsPlus] РЈ РІР°СЃ РїРѕСЃР»РµРґРЅСЏСЏ РІРµСЂСЃРёСЏ!', 0x00FF00)
+                        sampAddChatMessage('[SupportsPlus] У вас последняя версия!', 0x00FF00)
                     end
                 end
             end
         else
-            update_state.error = u8"РќРµ СѓРґР°Р»РѕСЃСЊ РїСЂРѕРІРµСЂРёС‚СЊ РѕР±РЅРѕРІР»РµРЅРёСЏ"
+            update_state.error = u8"Не удалось проверить обновления"
             log.error('Update check failed: ' .. tostring(response and response.status_code or 'no response'))
             if not silent then
                 sampAddChatMessage('[SupportsPlus] ' .. update_state.error, 0xFF3333)
@@ -487,15 +547,15 @@ local function download_update()
         local script_path = thisScript().path
         local backup_path = script_path .. '.backup'
         
-        -- Р‘СЌРєР°Рї С‚РµРєСѓС‰РµРіРѕ С„Р°Р№Р»Р°
+        -- Бэкап текущего файла
         local ok1, err1 = os.rename(script_path, backup_path)
         if not ok1 then
-            sampAddChatMessage('[SupportsPlus] РћС€РёР±РєР° СЃРѕР·РґР°РЅРёСЏ Р±СЌРєР°РїР°: ' .. tostring(err1), 0xFF3333)
+            sampAddChatMessage('[SupportsPlus] Ошибка создания бэкапа: ' .. tostring(err1), 0xFF3333)
             update_state.downloading = false
             return
         end
         
-        -- РЎРєР°С‡РёРІР°РЅРёРµ
+        -- Скачивание
         local ok2, response = pcall(requests.get, SCRIPT_URL, {timeout = 30})
         
         if ok2 and response and response.status_code == 200 then
@@ -504,18 +564,18 @@ local function download_update()
                 file:write(response.text)
                 file:close()
                 
-                sampAddChatMessage('[SupportsPlus] РћР±РЅРѕРІР»РµРЅРёРµ СѓСЃС‚Р°РЅРѕРІР»РµРЅРѕ! РџРµСЂРµР·Р°РіСЂСѓР·РєР°...', 0x00FF00)
+                sampAddChatMessage('[SupportsPlus] Обновление установлено! Перезагрузка...', 0x00FF00)
                 wait(1000)
                 thisScript():reload()
             else
-                -- Р’РѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёРµ РёР· Р±СЌРєР°РїР°
+                -- Восстановление из бэкапа
                 os.rename(backup_path, script_path)
-                sampAddChatMessage('[SupportsPlus] РћС€РёР±РєР° Р·Р°РїРёСЃРё С„Р°Р№Р»Р°', 0xFF3333)
+                sampAddChatMessage('[SupportsPlus] Ошибка записи файла', 0xFF3333)
             end
         else
-            -- Р’РѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёРµ РёР· Р±СЌРєР°РїР°
+            -- Восстановление из бэкапа
             os.rename(backup_path, script_path)
-            sampAddChatMessage('[SupportsPlus] РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё РѕР±РЅРѕРІР»РµРЅРёСЏ', 0xFF3333)
+            sampAddChatMessage('[SupportsPlus] Ошибка загрузки обновления', 0xFF3333)
         end
         
         update_state.downloading = false
@@ -523,7 +583,7 @@ local function download_update()
 end
 
 -- ============================================================================
--- Р”РђРќРќР«Р• РђР’РўРћРњРћР‘РР›Р•Р™
+-- ДАННЫЕ АВТОМОБИЛЕЙ
 -- ============================================================================
 local car_data_raw = {
     "Landstalker|Nope|250000|88|3000", "Perenniel|Nope|75000|74|900", "Previon|Nope|125000|83|1500",
@@ -593,8 +653,8 @@ local function parse_cars()
             log.warning(string.format('Car #%d parse failed: %s', i, tostring(err)))
         end
     end
-    log.info(string.format('Cars parsed: %d СѓСЃРїРµС€РЅРѕ, %d РѕС€РёР±РѕРє', count, failed))
-    print('[SupportsPlus] РђРІС‚Рѕ: ' .. count .. ' (РѕС€РёР±РѕРє: ' .. failed .. ')')
+    log.info(string.format('Cars parsed: %d успешно, %d ошибок', count, failed))
+    print('[SupportsPlus] Авто: ' .. count .. ' (ошибок: ' .. failed .. ')')
 end
 
 local car_search = imgui.ImBuffer(256)
@@ -604,12 +664,12 @@ local car_sort = imgui.ImInt(config.filters.car_sort)
 local function filter_cars()
     cars_filtered = {}
     local search = car_search.v:lower()
-    local classes = {'Р’СЃРµ', 'Nope', 'D', 'C', 'B', 'A', 'L'}
+    local classes = {'Все', 'Nope', 'D', 'C', 'B', 'A', 'L'}
     local sel_class = classes[car_class_filter.v + 1]
     
     for _, car in ipairs(cars) do
         local match = (search == '' or car.name:lower():find(search, 1, true)) and
-                     (sel_class == 'Р’СЃРµ' or car.class == sel_class)
+                     (sel_class == 'Все' or car.class == sel_class)
         if match then table.insert(cars_filtered, car) end
     end
     
@@ -631,51 +691,51 @@ local function toggle_car_favorite(car)
 end
 
 -- ============================================================================
--- GPS Р”РђРќРќР«Р•
+-- GPS ДАННЫЕ
 -- ============================================================================
 local gps_data = {
-    {name = u8'рџЏ¦ Р‘Р°РЅРєРё', items = {
+    {name = u8'?? Банки', items = {
         "LS Bank - Pershing Square", "SF Bank - Kings", "LV Bank - Roca Escalante",
         "LS Bank - Market", "SF Bank - Juniper Hill", "LV Bank - Come-A-Lot",
         "Bayside Bank", "Fort Carson Bank", "Palomino Creek Bank", "Las Barrancas Bank"
     }},
-    {name = u8'рџЏў Р“РѕСЃ. Р Р°Р±РѕС‚Р°', items = {
-        u8"РђРІС‚РѕС€РєРѕР»Р°", u8"РўР°РєСЃРѕРїР°СЂРє", u8"Р—Р°РІРѕРґ Р±РѕРµРїСЂРёРїР°СЃРѕРІ",
-        u8"РЎРєР»Р°Рґ РїСЂРѕРґСѓРєС‚РѕРІ", u8"Р—Р°РІРѕРґ РїРѕ РїСЂРѕРёР·РІРѕРґСЃС‚РІСѓ Р°РІС‚Рѕ",
-        u8"Р¤РµСЂРјР°", u8"РђРІС‚РѕР±СѓСЃРЅС‹Р№ РїР°СЂРє"
+    {name = u8'?? Гос. Работа', items = {
+        u8"Автошкола", u8"Таксопарк", u8"Завод боеприпасов",
+        u8"Склад продуктов", u8"Завод по производству авто",
+        u8"Ферма", u8"Автобусный парк"
 }},
-    {name = u8'рџЌ” Р‘Р°СЂС‹ / РљР»СѓР±С‹', items = {
+    {name = u8'?? Бары / Клубы', items = {
         "Alhambra", "Jizzy", "Pig Pen", "Grove street", "Misty",
         "Amnesia", "Big Spread Ranch", "Lil Probe Inn", "Comedy club"
     }},
-    {name = u8'рџљ— РђРІС‚РѕСЃР°Р»РѕРЅС‹', items = {
-        u8"РђРІС‚РѕСЃР°Р»РѕРЅ: Nope", u8"РђРІС‚РѕСЃР°Р»РѕРЅ: D and C", u8"РђРІС‚РѕСЃР°Р»РѕРЅ: L",
-        u8"РђРІС‚РѕСЃР°Р»РѕРЅ: S", u8"РђРІС‚РѕСЃР°Р»РѕРЅ [LV]: B and A"
+    {name = u8'?? Автосалоны', items = {
+        u8"Автосалон: Nope", u8"Автосалон: D and C", u8"Автосалон: L",
+        u8"Автосалон: S", u8"Автосалон [LV]: B and A"
     }},
-    {name = u8'рџЏ  Р”РѕРјР° С„СЂР°РєС†РёР№', items = {
-        u8"РџРѕР»РёС†РёСЏ", u8"РџСЂР°РІРёС‚РµР»СЊСЃС‚РІРѕ", u8"Р‘РѕР»СЊРЅРёС†Р°", u8"РђСЂРјРёСЏ [LS]",
-        u8"РђСЂРјРёСЏ [SF]", u8"РђСЂРјРёСЏ [LV]", u8"Р¤Р‘Р ", "Yakuza",
+    {name = u8'?? Дома фракций', items = {
+        u8"Полиция", u8"Правительство", u8"Больница", u8"Армия [LS]",
+        u8"Армия [SF]", u8"Армия [LV]", u8"ФБР", "Yakuza",
         "La Cosa Nostra", "Rifa", "Grove street", "Ballas", "Vagos", "Aztecas"
     }},
-    {name = u8'рџЏќпёЏ РћСЃС‚СЂРѕРІР°', items = {
-        u8"РћСЃС‚СЂРѕРІ С€С‚Р°С‚Р°: 0", u8"РћСЃС‚СЂРѕРІ С€С‚Р°С‚Р°: 1", u8"РћСЃС‚СЂРѕРІ С€С‚Р°С‚Р°: 2",
-        u8"РћСЃС‚СЂРѕРІ С€С‚Р°С‚Р°: 3", u8"РћСЃС‚СЂРѕРІ С€С‚Р°С‚Р°: 4"
+    {name = u8'??? Острова', items = {
+        u8"Остров штата: 0", u8"Остров штата: 1", u8"Остров штата: 2",
+        u8"Остров штата: 3", u8"Остров штата: 4"
     }},
-    {name = u8'рџЏЄ РњР°РіР°Р·РёРЅС‹ 24/7', items = {
+    {name = u8'?? Магазины 24/7', items = {
         "Idlewood", "Mulholland", "Flint", "Whetstone", "Easter",
         "Juniper", "Redsands West", "Creek", "Julius", "Emerald Isle",
         "Come-A-Lot", "Fort Carson", "Bayside", "Dillimore",
         "Palomino Creek", "El Quebrados", "Doherty", "Jefferson"
     }},
-    {name = u8'рџЌ” Р¤Р°СЃС‚С„СѓРґ', items = {
+    {name = u8'?? Фастфуд', items = {
         "Downtown", "Financial", "Garcia", "Juniper", "Esplanade",
         "Willowfield", "Vinewood", "Idlewood", "Fort Carson",
         "Redsands West", "Redsands East", "Creek", "Palomino Creek"
     }},
-    {name = u8'рџ’ј РњР°С„РёСЏ', items = {
-        u8"РњР°С„РёСЏ [LS]", u8"РњР°С„РёСЏ [SF]", u8"РњР°С„РёСЏ [LV]"
+    {name = u8'?? Мафия', items = {
+        u8"Мафия [LS]", u8"Мафия [SF]", u8"Мафия [LV]"
     }},
-    {name = u8'рџЏў РћС„РёСЃС‹', items = {
+    {name = u8'?? Офисы', items = {
         "SF [B] I", "SF [B] II", "LV [A] Elite", "LS [C] Classic",
         "Beach Office", "Downtown Office", "Montgomery office"
     }}
@@ -685,7 +745,7 @@ local gps_search = imgui.ImBuffer(256)
 local gps_category = imgui.ImInt(config.filters.gps_category)
 
 -- ============================================================================
--- РўР•РњРђ IMGUI
+-- ТЕМА IMGUI
 -- ============================================================================
 local function apply_theme()
     log.debug('apply_theme: Getting ImGui style and colors')
@@ -704,7 +764,7 @@ local function apply_theme()
     log.debug('apply_theme: Setting Header color')
     colors[clr.Header] = imgui.ImVec4(0.20, 0.50, 0.90, 0.45)
     
-    -- РўР°Р±С‹ РјРѕРіСѓС‚ РѕС‚СЃСѓС‚СЃС‚РІРѕРІР°С‚СЊ РІ СЃС‚Р°СЂС‹С… РІРµСЂСЃРёСЏС… imgui
+    -- Табы могут отсутствовать в старых версиях imgui
     if clr.Tab and clr.TabActive then
         log.debug('apply_theme: Setting Tab colors (supported)')
         colors[clr.Tab] = imgui.ImVec4(0.15, 0.15, 0.17, 1.00)
@@ -721,58 +781,58 @@ local function apply_theme()
 end
 
 -- ============================================================================
--- РћРљРќРђ
+-- ОКНА
 -- ============================================================================
 local main_win = imgui.ImBool(false)
 local car_win = imgui.ImBool(false)
 local gps_win = imgui.ImBool(false)
 local update_win = imgui.ImBool(false)
 
--- Р“Р»Р°РІРЅРѕРµ РѕРєРЅРѕ
+-- Главное окно
 local function render_main()
     if not main_win.v then return end
     imgui.SetNextWindowSize(imgui.ImVec2(600, 400), imgui.Cond.FirstUseEver)
     if imgui.Begin(u8'SupportsPlus - Samp-Rp.Ru v2.1', main_win) then
-        imgui.TextColored(imgui.ImVec4(0.2,0.8,0.4,1), u8'рџљЂ Р”РѕР±СЂРѕ РїРѕР¶Р°Р»РѕРІР°С‚СЊ РІ SupportsPlus!')
+        imgui.TextColored(imgui.ImVec4(0.2,0.8,0.4,1), u8'?? Добро пожаловать в SupportsPlus!')
         imgui.Separator()
         
-        if imgui.Button(u8'рџљ— Р‘Р°Р·Р° Р°РІС‚РѕРјРѕР±РёР»РµР№', imgui.ImVec2(250,40)) then car_win.v = true end
+        if imgui.Button(u8'?? База автомобилей', imgui.ImVec2(250,40)) then car_win.v = true end
         imgui.SameLine()
-        if imgui.Button(u8'рџ“Ќ GPS РќР°РІРёРіР°С‚РѕСЂ', imgui.ImVec2(250,40)) then gps_win.v = true end
+        if imgui.Button(u8'?? GPS Навигатор', imgui.ImVec2(250,40)) then gps_win.v = true end
         
         imgui.Spacing()
         if update_state.available then
-            imgui.TextColored(imgui.ImVec4(0.2,0.8,0.4,1), u8'вњЁ Р”РѕСЃС‚СѓРїРЅР° РЅРѕРІР°СЏ РІРµСЂСЃРёСЏ '..update_state.new_version..'!')
-            if imgui.Button(u8'рџ“Ґ РћС‚РєСЂС‹С‚СЊ РѕР±РЅРѕРІР»РµРЅРёСЏ', imgui.ImVec2(250,30)) then
+            imgui.TextColored(imgui.ImVec4(0.2,0.8,0.4,1), u8'? Доступна новая версия '..update_state.new_version..'!')
+            if imgui.Button(u8'?? Открыть обновления', imgui.ImVec2(250,30)) then
                 update_win.v = true
             end
         end
         
         imgui.Spacing()
-        imgui.Text(u8'РЎС‚Р°С‚РёСЃС‚РёРєР°:')
-        imgui.BulletText(u8'РђРІС‚РѕРјРѕР±РёР»РµР№: '..#cars)
-        imgui.BulletText(u8'GPS РєР°С‚РµРіРѕСЂРёР№: '..#gps_data)
-        imgui.BulletText(u8'РџР°РјСЏС‚СЊ: '..string.format('%.1f РњР‘', collectgarbage('count')/1024))
-        imgui.BulletText(u8'HTTP: '..(has_http and u8'вњ… Р”РѕСЃС‚СѓРїРµРЅ' or u8'вќЊ РќРµРґРѕСЃС‚СѓРїРµРЅ'))
+        imgui.Text(u8'Статистика:')
+        imgui.BulletText(u8'Автомобилей: '..#cars)
+        imgui.BulletText(u8'GPS категорий: '..#gps_data)
+        imgui.BulletText(u8'Память: '..string.format('%.1f МБ', collectgarbage('count')/1024))
+        imgui.BulletText(u8'HTTP: '..(has_http and u8'? Доступен' or u8'? Недоступен'))
     end
     imgui.End()
 end
 
--- РћРєРЅРѕ Р°РІС‚РѕРјРѕР±РёР»РµР№
+-- Окно автомобилей
 local function render_cars()
     if not car_win.v then return end
     imgui.SetNextWindowSize(imgui.ImVec2(850,600), imgui.Cond.FirstUseEver)
-    if imgui.Begin(u8'рџљ— Р‘Р°Р·Р° Р°РІС‚РѕРјРѕР±РёР»РµР№ - '..#cars_filtered..u8' РЅР°Р№РґРµРЅРѕ', car_win) then
+    if imgui.Begin(u8'?? База автомобилей - '..#cars_filtered..u8' найдено', car_win) then
         imgui.PushItemWidth(250)
-        if imgui.InputTextWithHint('##s', u8'РџРѕРёСЃРє...', car_search) then filter_cars() end
+        if imgui.InputTextWithHint('##s', u8'Поиск...', car_search) then filter_cars() end
         imgui.PopItemWidth()
         imgui.SameLine()
         imgui.PushItemWidth(100)
-        if imgui.Combo('##c', car_class_filter, {'Р’СЃРµ','Nope','D','C','B','A','L'}) then filter_cars() end
+        if imgui.Combo('##c', car_class_filter, {'Все','Nope','D','C','B','A','L'}) then filter_cars() end
         imgui.PopItemWidth()
         imgui.SameLine()
         imgui.PushItemWidth(120)
-        if imgui.Combo('##sort', car_sort, {u8'РќР°Р·РІР°РЅРёРµ',u8'Р¦РµРЅР°',u8'РЎРєРѕСЂРѕСЃС‚СЊ'}) then filter_cars() end
+        if imgui.Combo('##sort', car_sort, {u8'Название',u8'Цена',u8'Скорость'}) then filter_cars() end
         imgui.PopItemWidth()
         
         imgui.BeginChild('list', imgui.ImVec2(0,0), true)
@@ -783,15 +843,15 @@ local function render_cars()
             imgui.PushStyleColor(imgui.Col.Header, imgui.ImVec4(col[1],col[2],col[3],col[4]))
             if imgui.CollapsingHeader(car.name..' ['..car.class..']##'..i) then
                 imgui.Indent(15)
-                imgui.Text(u8'Р¦РµРЅР°: '..utils.format_price(car.price))
-                imgui.Text(u8'РЎРєРѕСЂРѕСЃС‚СЊ: '..car.speed..' m/h')
-                imgui.Text(u8'РќР°Р»РѕРі: '..utils.format_price(car.tax))
-                if imgui.Button(u8'РЎРєРѕРїРёСЂРѕРІР°С‚СЊ##'..i, imgui.ImVec2(140,25)) then
+                imgui.Text(u8'Цена: '..utils.format_price(car.price))
+                imgui.Text(u8'Скорость: '..car.speed..' m/h')
+                imgui.Text(u8'Налог: '..utils.format_price(car.tax))
+                if imgui.Button(u8'Скопировать##'..i, imgui.ImVec2(140,25)) then
                     setClipboardText(car.name)
                     sampAddChatMessage('[SupportsPlus] '..car.name, 0x00FF00)
                 end
                 imgui.SameLine()
-                if imgui.Button((car.favorite and u8'в… РР·Р±СЂР°РЅРЅРѕРµ' or u8'в† Р’ РёР·Р±СЂР°РЅРЅРѕРµ')..'##'..i) then
+                if imgui.Button((car.favorite and u8'? Избранное' or u8'? В избранное')..'##'..i) then
                     toggle_car_favorite(car)
                 end
                 imgui.Unindent(15)
@@ -803,13 +863,13 @@ local function render_cars()
     imgui.End()
 end
 
--- РћРєРЅРѕ GPS
+-- Окно GPS
 local function render_gps()
     if not gps_win.v then return end
     imgui.SetNextWindowSize(imgui.ImVec2(700,500), imgui.Cond.FirstUseEver)
-    if imgui.Begin(u8'рџ“Ќ GPS РќР°РІРёРіР°С‚РѕСЂ', gps_win) then
+    if imgui.Begin(u8'?? GPS Навигатор', gps_win) then
         imgui.PushItemWidth(350)
-        imgui.InputTextWithHint('##gs', u8'РџРѕРёСЃРє Р»РѕРєР°С†РёРё...', gps_search)
+        imgui.InputTextWithHint('##gs', u8'Поиск локации...', gps_search)
         imgui.PopItemWidth()
         
         if imgui.BeginTabBar('GPSTabs') then
@@ -831,33 +891,33 @@ local function render_gps()
     imgui.End()
 end
 
--- РћРєРЅРѕ РѕР±РЅРѕРІР»РµРЅРёР№
+-- Окно обновлений
 local function render_updates()
     if not update_win.v then return end
     imgui.SetNextWindowSize(imgui.ImVec2(500,350), imgui.Cond.FirstUseEver)
     imgui.SetNextWindowPos(imgui.ImVec2(imgui.GetIO().DisplaySize.x/2-250, imgui.GetIO().DisplaySize.y/2-175), imgui.Cond.FirstUseEver)
     
-    if imgui.Begin(u8'рџ“Ґ РћР±РЅРѕРІР»РµРЅРёСЏ SupportsPlus', update_win) then
-        imgui.TextColored(imgui.ImVec4(0.2,0.8,0.4,1), u8'РЎРёСЃС‚РµРјР° Р°РІС‚РѕРѕР±РЅРѕРІР»РµРЅРёР№')
+    if imgui.Begin(u8'?? Обновления SupportsPlus', update_win) then
+        imgui.TextColored(imgui.ImVec4(0.2,0.8,0.4,1), u8'Система автообновлений')
         imgui.Separator()
         imgui.Spacing()
         
-        imgui.Text(u8'РўРµРєСѓС‰Р°СЏ РІРµСЂСЃРёСЏ: '..script_version())
+        imgui.Text(u8'Текущая версия: '..script_version())
         
         if update_state.available then
-            imgui.TextColored(imgui.ImVec4(0.2,0.8,0.4,1), u8'Р”РѕСЃС‚СѓРїРЅР° РІРµСЂСЃРёСЏ: '..update_state.new_version)
+            imgui.TextColored(imgui.ImVec4(0.2,0.8,0.4,1), u8'Доступна версия: '..update_state.new_version)
             imgui.Spacing()
-            imgui.TextWrapped(u8'РР·РјРµРЅРµРЅРёСЏ: '..update_state.changelog)
+            imgui.TextWrapped(u8'Изменения: '..update_state.changelog)
             imgui.Spacing()
             
             if update_state.downloading then
-                imgui.TextColored(imgui.ImVec4(1,0.7,0.2,1), u8'Р—Р°РіСЂСѓР·РєР°...')
+                imgui.TextColored(imgui.ImVec4(1,0.7,0.2,1), u8'Загрузка...')
             else
-                if imgui.Button(u8'рџ“Ґ РЈСЃС‚Р°РЅРѕРІРёС‚СЊ РѕР±РЅРѕРІР»РµРЅРёРµ', imgui.ImVec2(200,35)) then
+                if imgui.Button(u8'?? Установить обновление', imgui.ImVec2(200,35)) then
                     download_update()
                 end
                 imgui.SameLine()
-                if imgui.Button(u8'вќЊ РџСЂРѕРїСѓСЃС‚РёС‚СЊ', imgui.ImVec2(120,35)) then
+                if imgui.Button(u8'? Пропустить', imgui.ImVec2(120,35)) then
                     config.update.skip_version = update_state.new_version
                     save_config()
                     update_state.available = false
@@ -865,13 +925,13 @@ local function render_updates()
                 end
             end
         else
-            imgui.Text(u8'РЈ РІР°СЃ РїРѕСЃР»РµРґРЅСЏСЏ РІРµСЂСЃРёСЏ!')
+            imgui.Text(u8'У вас последняя версия!')
             imgui.Spacing()
             
             if update_state.checking then
-                imgui.TextColored(imgui.ImVec4(1,0.7,0.2,1), u8'РџСЂРѕРІРµСЂРєР°...')
+                imgui.TextColored(imgui.ImVec4(1,0.7,0.2,1), u8'Проверка...')
             else
-                if imgui.Button(u8'рџ”„ РџСЂРѕРІРµСЂРёС‚СЊ РѕР±РЅРѕРІР»РµРЅРёСЏ', imgui.ImVec2(200,35)) then
+                if imgui.Button(u8'?? Проверить обновления', imgui.ImVec2(200,35)) then
                     check_for_updates(false)
                 end
             end
@@ -882,10 +942,10 @@ local function render_updates()
         imgui.Spacing()
         
         if has_http then
-            imgui.TextColored(imgui.ImVec4(0.2,0.8,0.4,1), u8'вњ… HTTP РґРѕСЃС‚СѓРїРµРЅ')
+            imgui.TextColored(imgui.ImVec4(0.2,0.8,0.4,1), u8'? HTTP доступен')
         else
-            imgui.TextColored(imgui.ImVec4(1,0.3,0.3,1), u8'вќЊ HTTP РЅРµРґРѕСЃС‚СѓРїРµРЅ')
-            imgui.TextWrapped(u8'Р”Р»СЏ Р°РІС‚РѕРѕР±РЅРѕРІР»РµРЅРёР№ СѓСЃС‚Р°РЅРѕРІРёС‚Рµ Р±РёР±Р»РёРѕС‚РµРєСѓ requests')
+            imgui.TextColored(imgui.ImVec4(1,0.3,0.3,1), u8'? HTTP недоступен')
+            imgui.TextWrapped(u8'Для автообновлений установите библиотеку requests')
         end
         
         imgui.Spacing()
@@ -895,14 +955,14 @@ local function render_updates()
 end
 
 -- ============================================================================
--- Р“Р›РђР’РќРђРЇ Р¤РЈРќРљР¦РРЇ
+-- ГЛАВНАЯ ФУНКЦИЯ
 -- ============================================================================
 function main()
-    -- РќР• РїСЂРѕРІРµСЂСЏРµРј SAMP Р·РґРµСЃСЊ - СЌС‚Рѕ РґРµР»Р°РµС‚СЃСЏ РІ script_main!
-    -- Р­С‚Р° С„СѓРЅРєС†РёСЏ РІС‹Р·С‹РІР°РµС‚СЃСЏ С‚РѕР»СЊРєРѕ РїРѕСЃР»Рµ РїРѕРґРєР»СЋС‡РµРЅРёСЏ Рє СЃРµСЂРІРµСЂСѓ
+    -- НЕ проверяем SAMP здесь - это делается в script_main!
+    -- Эта функция вызывается только после подключения к серверу
     
     log.info('=== SupportsPlus Main Initialization ===')
-    print('[SupportsPlus] SupportsPlus v2.1.5 Р·Р°РіСЂСѓР·РєР°...')
+    print('[SupportsPlus] SupportsPlus v2.1.5 загрузка...')
     
     log.info('Step 1/3: Parsing car database...')
     log.measure('parse_cars', parse_cars)
@@ -916,10 +976,10 @@ function main()
     log.measure('apply_theme', apply_theme)
     log.info('Theme applied successfully')
     
-    sampAddChatMessage('{00FF00}[SupportsPlus] v2.1.5 Р·Р°РіСЂСѓР¶РµРЅ! F8 РњРµРЅСЋ | F9 РђРІС‚Рѕ | F10 GPS | F11 РћР±РЅРѕРІР»РµРЅРёСЏ', -1)
+    sampAddChatMessage('{00FF00}[SupportsPlus] v2.1.5 загружен! F8 Меню | F9 Авто | F10 GPS | F11 Обновления', -1)
     log.info('=== SupportsPlus Fully Initialized and Ready ===')
     
-    -- РџСЂРѕРІРµСЂРєР° РѕР±РЅРѕРІР»РµРЅРёР№ РїСЂРё СЃС‚Р°СЂС‚Рµ
+    -- Проверка обновлений при старте
     if config.settings.check_updates_on_start and has_http then
         log.debug('Scheduling update check in 3 seconds')
         lua_thread.create(function()
@@ -962,14 +1022,14 @@ function onScriptTerminate(s, q)
     if s == thisScript() then
         save_config()
         log.info('=== SupportsPlus Terminated ===')
-        print('[SupportsPlus] Р’С‹РіСЂСѓР¶РµРЅ')
+        print('[SupportsPlus] Выгружен')
     end
 end
 
--- Р—Р°РїСѓСЃРє РІ РѕС‚РґРµР»СЊРЅРѕРј РїРѕС‚РѕРєРµ (РєРѕСЂСѓС‚РёРЅС‹ С‚СЂРµР±СѓСЋС‚ lua_thread)
+-- Запуск в отдельном потоке (корутины требуют lua_thread)
 log.info('Creating main thread')
 
--- Hardcoded РІРµСЂСЃРёСЏ РЅР° СЃР»СѓС‡Р°Р№ РµСЃР»Рё script_version() РІРѕР·РІСЂР°С‰Р°РµС‚ nil
+-- Hardcoded версия на случай если script_version() возвращает nil
 local SCRIPT_VERSION = "2.1.6"
 
 function script_main()
@@ -984,7 +1044,7 @@ function script_main()
     repeat wait(0) until sampGetCurrentServerName() ~= 'SA-MP'
     
     log.info('Server connected, calling main()')
-    -- РўРµРїРµСЂСЊ РІС‹Р·С‹РІР°РµРј main РѕРґРёРЅ СЂР°Р·
+    -- Теперь вызываем main один раз
     main()
 end
 
