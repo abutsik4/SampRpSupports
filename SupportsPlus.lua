@@ -10,8 +10,8 @@
 
 script_name('SupportsPlus')
 script_author("Serhiy_Rubin")
-script_version("2.1.1")
-script_version_number(2011)
+script_version("2.1.2")
+script_version_number(2012)
 
 -- GitHub конфигурация
 local GITHUB_REPO = "abutsik4/SampRpSupports"
@@ -217,11 +217,10 @@ end
 local function get_system_info()
     local info = {
         script_version = script_version(),
-        samp_version = sampGetGameVersion() or 'unknown',
+        moonloader_version = getMoonloaderVersion() or 'unknown',
         lua_version = _VERSION,
         memory = string.format('%.2f MB', collectgarbage('count') / 1024),
-        time = os.date('%Y-%m-%d %H:%M:%S'),
-        server = sampGetCurrentServerName() or 'offline'
+        time = os.date('%Y-%m-%d %H:%M:%S')
     }
     return info
 end
@@ -648,7 +647,8 @@ local gps_category = imgui.ImInt(config.filters.gps_category)
 -- ТЕМА IMGUI
 -- ============================================================================
 local function apply_theme()
-    local style, colors, clr = imgui.GetStyle(), imgui.GetStyle().Colors, imgui.Col
+    local colors, clr = imgui.GetStyle().Colors, imgui.Col
+    local style = imgui.GetStyle()
     colors[clr.WindowBg] = imgui.ImVec4(0.12, 0.12, 0.14, 1)
     colors[clr.Button] = imgui.ImVec4(0.20, 0.50, 0.90, 1)
     colors[clr.ButtonHovered] = imgui.ImVec4(0.25, 0.60, 1.00, 1)
@@ -656,7 +656,8 @@ local function apply_theme()
     colors[clr.Header] = imgui.ImVec4(0.20, 0.50, 0.90, 0.45)
     colors[clr.Tab] = imgui.ImVec4(0.15, 0.15, 0.17, 1)
     colors[clr.TabActive] = imgui.ImVec4(0.20, 0.50, 0.90, 1)
-    style.WindowRounding, style.FrameRounding, style.TabRounding = 8, 4, 4
+    style.WindowRounding = 8.0
+    style.FrameRounding = 4.0
 end
 
 -- ============================================================================
@@ -896,10 +897,6 @@ function onScriptTerminate(s, q)
     end
 end
 
--- Запуск
+-- Запуск без pcall (coroutines требуют прямого вызова)
 log.info('Starting main function')
-local ok, err = pcall(main)
-if not ok then 
-    log.error('Main function crashed: ' .. tostring(err), true)
-    print('[SupportsPlus] ОШИБКА: '..tostring(err)) 
-end
+main()
