@@ -1,34 +1,12 @@
 {
-  "version": "2.1.1",
-  "version_number": 2011,
-  "changelog": "Добавлена система логирования: DEBUG/INFO/WARN/ERROR, ротация, стек вызовов, замеры производительности",
+  "version": "2.1.2",
+  "version_number": 2012,
+  "changelog": "Критические исправления: API вызовы, корутины, тема ImGui",
   "release_date": "2026-01-13",
   "download_url": "https://raw.githubusercontent.com/abutsik4/SampRpSupports/main/SupportsPlus.lua",
-  "min_moonloader_version": "026.5",
-  "required_libs": [
-    "lib.samp.events",
-    "lib.vkeys",
-    "lib.inicfg",
-    "imgui"
-  ],
-  "optional_libs": [
-    "requests"
-  ],
-  "features": [
-    "90+ автомобилей с поиском и фильтрацией",
-    "200+ GPS локаций в 10 категориях",
-    "Система избранного",
-    "Автообновление",
-    "Сохранение настроек",
-    "Современный ImGui интерфейс",
-    "Профессиональное логирование с ротацией файлов"
-  ],
-  "new_in_211": [
-    "Система логирования с 4 уровнями (DEBUG/INFO/WARN/ERROR)",
-    "Автоматическая ротация логов (512KB, до 5 файлов)",
-    "Стек вызовов для отладки ошибок",
-    "Замеры производительности функций",
-    "Системная информация в логах",
-    "Логи доступны в moonloader/SupportsPlus/logs/"
+  "bugfixes_212": [
+    "Исправлена ошибка с несуществующим sampGetGameVersion()",
+    "Убран pcall из main() для поддержки корутин",
+    "Удалён неподдерживаемый TabRounding из темы"
   ]
 }
