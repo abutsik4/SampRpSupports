@@ -10,8 +10,8 @@
 
 script_name('SupportsPlus')
 script_author("Serhiy_Rubin")
-script_version("2.1.3")
-script_version_number(2013)
+script_version("2.1.4")
+script_version_number(2014)
 
 -- GitHub конфигурация
 local GITHUB_REPO = "abutsik4/SampRpSupports"
@@ -124,9 +124,24 @@ end
 
 function utils.compare_versions(v1, v2)
     -- Возвращает 1 если v1 > v2, -1 если v1 < v2, 0 если равны
+    
+    -- Проверка на nil или пустые строки
+    if not v1 or v1 == '' then
+        log.warning('compare_versions: v1 is nil or empty, treating as 0.0.0')
+        v1 = '0.0.0'
+    end
+    if not v2 or v2 == '' then
+        log.warning('compare_versions: v2 is nil or empty, treating as 0.0.0')
+        v2 = '0.0.0'
+    end
+    
+    log.debug(string.format('compare_versions: comparing "%s" vs "%s"', tostring(v1), tostring(v2)))
+    
     local function split(v)
         local parts = {}
-        for part in v:gmatch('[^.]+') do
+        -- Преобразуем в строку на всякий случай
+        local str = tostring(v)
+        for part in str:gmatch('[^.]+') do
             table.insert(parts, tonumber(part) or 0)
         end
         return parts
@@ -135,9 +150,16 @@ function utils.compare_versions(v1, v2)
     local p1, p2 = split(v1), split(v2)
     for i = 1, math.max(#p1, #p2) do
         local n1, n2 = p1[i] or 0, p2[i] or 0
-        if n1 > n2 then return 1 end
-        if n1 < n2 then return -1 end
+        if n1 > n2 then 
+            log.debug(string.format('compare_versions: %s > %s (result: 1)', v1, v2))
+            return 1 
+        end
+        if n1 < n2 then 
+            log.debug(string.format('compare_versions: %s < %s (result: -1)', v1, v2))
+            return -1 
+        end
     end
+    log.debug(string.format('compare_versions: %s == %s (result: 0)', v1, v2))
     return 0
 end
 
@@ -393,14 +415,24 @@ local function check_for_updates(silent)
             
             if version_match then
                 local current_version = script_version()
+                
+                -- Проверяем что версия определена
+                if not current_version or current_version == '' then
+                    log.error('script_version() returned nil or empty!')
+                    current_version = '0.0.0'
+                end
+                
                 config.update.last_check = os.time()
                 
                 log.with_context(log.LEVEL.INFO, 'Version check', {
-                    current = current_version,
-                    available = version_match
+                    current = tostring(current_version),
+                    available = tostring(version_match)
                 })
                 
-                if utils.compare_versions(version_match, current_version) > 0 then
+                local cmp_result = utils.compare_versions(version_match, current_version)
+                log.debug('Version comparison result: ' .. tostring(cmp_result))
+                
+                if cmp_result > 0 then
                     -- Новая версия доступна
                     if config.update.skip_version ~= version_match then
                         update_state.available = true
